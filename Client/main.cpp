@@ -199,6 +199,22 @@ int main() {
         send(clientSocket, iv, EVP_MAX_IV_LENGTH, 0);
         send(clientSocket, ciphertext, ciphertext_len, 0);
         std::cout << "Sent encrypted message to server." << std::endl;
+
+        // wait for reply from server
+        unsigned char replyIV[EVP_MAX_IV_LENGTH];
+        int bytesRead = recv(clientSocket, replyIV, EVP_MAX_IV_LENGTH, 0);
+
+        // if bytesRead is 0, it means the server has closed the connection
+        if (bytesRead > 0) {
+            unsigned char replyCipher[BUFFER_SIZE];
+            bytesRead = recv(clientSocket, replyCipher, BUFFER_SIZE, 0);
+
+            unsigned char replyPlain[BUFFER_SIZE];
+            decryptMessage(replyCipher, bytesRead, sharedSecret, replyIV, replyPlain);
+
+            std::cout << "Server says: " << replyPlain << std::endl;
+        }
+
     }
     close(clientSocket);
 }

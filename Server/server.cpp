@@ -170,8 +170,27 @@ void handleClient(int clientSocket) {
 
         std::cout << "Decrypted message: " << decryptedBuffer << std::endl;
 
-        // Echo back the decrypted message to the client
-        send(clientSocket, decryptedBuffer,  strlen(reinterpret_cast<const char*>(decryptedBuffer)), 0);
+        // encrypt a reply message using the shared secret and send it back to the client
+        unsigned char replyIV[EVP_MAX_IV_LENGTH];
+
+        // generate a random IV for the reply message
+        if (RAND_bytes(replyIV, EVP_MAX_IV_LENGTH) != 1) {
+            std::cerr << "error generating reply IV" << std::endl;
+            close(clientSocket);
+            return;
+        }
+
+        // encrypt the reply message using the shared secret and the generated IV
+        unsigned char replyCipher[BUFFER_SIZE];
+        int replyLen;
+
+        std::string replyMsg(reinterpret_cast<char*>(decryptedBuffer));
+
+        encryptMessage(replyMsg, replyCipher, &replyLen, replyIV, sharedSecret);
+
+        // send the IV and the encrypted reply message back to the client
+        send(clientSocket, replyIV, EVP_MAX_IV_LENGTH, 0);
+        send(clientSocket, replyCipher, replyLen, 0);
     }
     close(clientSocket);
 }
