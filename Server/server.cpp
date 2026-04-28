@@ -12,10 +12,32 @@ void handleClient(int clientSocket) {
     int bytesRead;
 
     // TODO: read the iv from the client
+    if (recv(clientSocket, iv, EVP_MAX_IV_LENGTH, MSG_WAITALL) != EVP_MAX_IV_LENGTH) {
+        std::cerr << "Error: Failed to receive IV from client." << std::endl;
+        close(clientSocket);
+        return;
+    }
     
 
     unsigned char encryptedBuffer[BUFFER_SIZE];
     // TODO: read the encrypted message from the client and store it in bytesRead
+    uint32_t clientNetCipherLen = 0;
+    if (recv(clientSocket, &clientNetCipherLen, sizeof(clientNetCipherLen), MSG_WAITALL) != sizeof(clientNetCipherLen)) {
+        std::cerr << "Error: Failed to receive ciphertext length from client." << std::endl;
+        close(clientSocket);
+        return;
+    }
+    bytesRead = static_cast<int>(ntohl(clientNetCipherLen));
+    if (bytesRead <= 0 || bytesRead > BUFFER_SIZE) {
+        std::cerr << "Error: Invalid ciphertext length from client." << std::endl;
+        close(clientSocket);
+        return;
+    }
+    if (recv(clientSocket, encryptedBuffer, bytesRead, MSG_WAITALL) != bytesRead) {
+        std::cerr << "Error: Failed to receive ciphertext from client." << std::endl;
+        close(clientSocket);
+        return;
+    }
    
 
     unsigned char decryptedBuffer[BUFFER_SIZE];
@@ -36,14 +58,22 @@ void handleClient(int clientSocket) {
     // TODO: Call DH_get_2048_256() to generate DH parameters
     // You should use that method, so the server and client will use the same p and g
     // and store it in privkey. Then call handleErrors()
+    privkey = DH_get_2048_256();
+    if (privkey == NULL) {
+        handleErrors();
+    }
     
 
     // TODO: Write a method to generate the public and private key pair
+    if (DH_generate_key(privkey) != 1) {
+        handleErrors();
+    }
     
     
     const BIGNUM *pubkey = NULL;
     // TODO: Write a method to extract the public key from privkey and store it in pubkey
     // HINT: DH_get0_pub_key()
+    pubkey = DH_get0_pub_key(privkey);
     
 
     if (pubkey == NULL) {
@@ -79,8 +109,24 @@ void handleClient(int clientSocket) {
     encryptWithPSK(pubkey_bin, pubkey_len, (unsigned char*)pre_shared.c_str(), ciphertext, IV, ciphertext_len);
     
     // TODO: send the iv to the client
+    if (send(clientSocket, IV, EVP_MAX_IV_LENGTH, 0) != EVP_MAX_IV_LENGTH) {
+        std::cerr << "Error: Failed to send IV to client." << std::endl;
+        close(clientSocket);
+        return;
+    }
     
     // TODO: send the ciphertext to the client
+    uint32_t netCipherLen = htonl(static_cast<uint32_t>(ciphertext_len));
+    if (send(clientSocket, &netCipherLen, sizeof(netCipherLen), 0) != sizeof(netCipherLen)) {
+        std::cerr << "Error: Failed to send ciphertext length to client." << std::endl;
+        close(clientSocket);
+        return;
+    }
+    if (send(clientSocket, ciphertext, ciphertext_len, 0) != ciphertext_len) {
+        std::cerr << "Error: Failed to send ciphertext to client." << std::endl;
+        close(clientSocket);
+        return;
+    }
     
     
     std::cout << "Encrypted public key sent to client." << std::endl;

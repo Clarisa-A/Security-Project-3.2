@@ -29,14 +29,22 @@ int main() {
     // TODO: Call DH_get_2048_256() to generate DH parameters
     // You should use that method, so the server and client will use the same p and g
     // and store it in privkey. Then call handleErrors()
+    privkey = DH_get_2048_256();
+    if (privkey == NULL) {
+        handleErrors();
+    }
     
     
     // TODO: Write a method to generate the public and private key pair
+    if (DH_generate_key(privkey) != 1) {
+        handleErrors();
+    }
     
     
     const BIGNUM *pubkey = NULL;
     // TODO: Write a method to extract the public key from privkey and store it in pubkey
     // HINT: DH_get0_pub_key()
+    pubkey = DH_get0_pub_key(privkey);
     
 
     if (pubkey == NULL) {
@@ -71,8 +79,24 @@ int main() {
     encryptWithPSK(pubkey_bin, pubkey_len, (unsigned char*)pre_shared.c_str(), ciphertext, iv, ciphertext_len);
 
     // TODO: send the iv to the server
+    if (send(clientSocket, iv, EVP_MAX_IV_LENGTH, 0) != EVP_MAX_IV_LENGTH) {
+        std::cerr << "Error: Failed to send IV to server." << std::endl;
+        close(clientSocket);
+        return 1;
+    }
     
     // TODO: send the ciphertext to the server
+    uint32_t netCipherLen = htonl(static_cast<uint32_t>(ciphertext_len));
+    if (send(clientSocket, &netCipherLen, sizeof(netCipherLen), 0) != sizeof(netCipherLen)) {
+        std::cerr << "Error: Failed to send ciphertext length to server." << std::endl;
+        close(clientSocket);
+        return 1;
+    }
+    if (send(clientSocket, ciphertext, ciphertext_len, 0) != ciphertext_len) {
+        std::cerr << "Error: Failed to send ciphertext to server." << std::endl;
+        close(clientSocket);
+        return 1;
+    }
     
 
     std::cout << "Encrypted public key sent to server." << std::endl;
@@ -83,10 +107,32 @@ int main() {
     int bytesRead;
 
     // TODO: receive the IV from the server
+    if (recv(clientSocket, IV, EVP_MAX_IV_LENGTH, MSG_WAITALL) != EVP_MAX_IV_LENGTH) {
+        std::cerr << "Error: Failed to receive IV from server." << std::endl;
+        close(clientSocket);
+        return 1;
+    }
     
     
     unsigned char encryptedBuffer[BUFFER_SIZE];
     // TODO: receive the encrypted message from the server and store it in bytesRead
+    uint32_t serverNetCipherLen = 0;
+    if (recv(clientSocket, &serverNetCipherLen, sizeof(serverNetCipherLen), MSG_WAITALL) != sizeof(serverNetCipherLen)) {
+        std::cerr << "Error: Failed to receive ciphertext length from server." << std::endl;
+        close(clientSocket);
+        return 1;
+    }
+    bytesRead = static_cast<int>(ntohl(serverNetCipherLen));
+    if (bytesRead <= 0 || bytesRead > BUFFER_SIZE) {
+        std::cerr << "Error: Invalid ciphertext length from server." << std::endl;
+        close(clientSocket);
+        return 1;
+    }
+    if (recv(clientSocket, encryptedBuffer, bytesRead, MSG_WAITALL) != bytesRead) {
+        std::cerr << "Error: Failed to receive ciphertext from server." << std::endl;
+        close(clientSocket);
+        return 1;
+    }
     
     unsigned char decryptedBuffer[BUFFER_SIZE];
     int decryptedLen;
