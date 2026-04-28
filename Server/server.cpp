@@ -62,6 +62,9 @@ void handleClient(int clientSocket) {
     if (privkey == NULL) {
         handleErrors();
     }
+    if (DH_check(privkey, &codes) != 1 || codes != 0) {
+        handleErrors();
+    }
     
 
     // TODO: Write a method to generate the public and private key pair
@@ -134,9 +137,16 @@ void handleClient(int clientSocket) {
     // Step 3: Compute the session key (shared secret)
     BIGNUM *clientPubKey = BN_bin2bn(decryptedBuffer, decryptedLen, NULL);
     unsigned char *sharedSecret = (unsigned char *)OPENSSL_malloc(DH_size(privkey));
+    if (clientPubKey == NULL || sharedSecret == NULL) {
+        handleErrors();
+    }
 
     // TODO: compute the shared secret and store it in secret_size
     // HINT: using DH_compute_key()
+    secret_size = DH_compute_key(sharedSecret, clientPubKey, privkey);
+    if (secret_size <= 0) {
+        handleErrors();
+    }
     
 
     std::cout << "Shared Secret (Hex): ";

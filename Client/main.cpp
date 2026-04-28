@@ -33,6 +33,9 @@ int main() {
     if (privkey == NULL) {
         handleErrors();
     }
+    if (DH_check(privkey, &codes) != 1 || codes != 0) {
+        handleErrors();
+    }
     
     
     // TODO: Write a method to generate the public and private key pair
@@ -149,9 +152,16 @@ int main() {
     // Step 3: Compute the session key (shared secret)
     BIGNUM *serverPubKey = BN_bin2bn(decryptedBuffer, decryptedLen, NULL);
     unsigned char *sharedSecret = (unsigned char *)OPENSSL_malloc(DH_size(privkey));
+    if (serverPubKey == NULL || sharedSecret == NULL) {
+        handleErrors();
+    }
 
     // TODO: compute the shared secret and store it in secret_size
     // HINT: using DH_compute_key()
+    secret_size = DH_compute_key(sharedSecret, serverPubKey, privkey);
+    if (secret_size <= 0) {
+        handleErrors();
+    }
     
 
     std::cout << "Shared Secret (Hex): ";
